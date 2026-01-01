@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>쿠키 경찰청 인트라넷</title>
+<style>
+body { font-family: Arial, sans-serif; margin:0; background:#fff; }
+.container { width:400px; margin:100px auto; text-align:center; }
+input, select, button, textarea { display:block; width:100%; margin:10px 0; padding:10px; border-radius:5px; border:1px solid #ccc; }
+textarea { resize:vertical; }
+.login-btn { background:#0047AB; color:#fff; border:none; cursor:pointer; font-weight:bold; }
+.signup-btn { color:#0047AB; cursor:pointer; }
+.question { color:#555; }
+.main-wrapper { padding:20px; }
+.top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.logo { color:#0047AB; font-weight:bold; font-size:24px; }
+.slogan { font-size:14px; color:#555; }
+.menu-area { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.menu-btn { width:90px; height:90px; border-radius:50%; background:#eee; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; font-weight:bold; color:#333; transition:0.2s; text-align:center;}
+.menu-btn:hover { background:#ccc; }
+.org-chart { margin-top:30px; display:flex; flex-direction:column; align-items:center; gap:20px; }
+.org-level { display:flex; gap:50px; justify-content:center; }
+.org-box { border:1px solid #0047AB; padding:10px; border-radius:5px; text-align:center; min-width:150px; }
+.org-title { font-weight:bold; color:#0047AB; }
+.org-name { color:#000; margin-top:5px; }
+.notice-wrapper, .generic-wrapper { padding:20px; }
+.notice-box { margin-top:10px; border:1px solid #ccc; border-radius:5px; padding:10px; max-height:300px; overflow-y:auto; }
+.notice-item { background:#f9f9f9; padding:8px; margin:5px 0; display:flex; justify-content:space-between; border-radius:4px; cursor:pointer; }
+.back-btn { margin-top:20px; padding:5px 10px; cursor:pointer; border-radius:5px; }
+.action-btn { margin-left:5px; background:#0047AB; color:#fff; border:none; padding:3px 6px; cursor:pointer; border-radius:3px; font-size:12px; }
+.legacy { margin-top:30px; font-size:18px; font-weight:bold; color:#0047AB; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ===================== 전역 변수 =====================
+let currentRank = "";
+let curFrentUserName = "";
+let users = [];
+let adminRanks = ["경찰청장","치안정감","경사(팀장)"];
+let adminUsers = [];
+let notices = [
+  {title:"내부 시스템 점검 안내", content:"점검은 1월 3일 00:00~02:00 진행됩니다.", author:"박정호", rank:"경찰청장"},
+  {title:"사건기록 보안 강화 안내", content:"모든 사건기록은 암호화 저장됩니다.", author:"한강우", rank:"치안정감"},
+  {title:"설 연휴 근무 지침", content:"연휴 기간 근무 배치는 공지 참고", author:"조재우", rank:"경사(팀장)"}
+];
+let warrants = [];
+let cases = [];
+let reports = [];
+let internalReports = [];
+
+// ===================== 로그인 / 회원가입 =====================
+function loginPage(){
+document.getElementById("app").innerHTML=`
+<div class="container">
+<h1 class="main-title">쿠키경찰청</h1>
+<div class="sub-title">인트라넷</div>
+<div class="login-title">로그인</div>
+<input type="text" id="loginId" placeholder="아이디">
+<input type="password" id="loginPw" placeholder="비밀번호">
+<button class="login-btn" onclick="login()">로그인</button>
+<div class="signup-area">
+<span class="question">계정이 없으신가요?</span>
+<span class="signup-btn" onclick="signupPage()">회원가입</span>
+</div>
+</div>`;
+}
+
+function signupPage(){
+document.getElementById("app").innerHTML=`
+<div class="container">
+<h1 class="main-title">쿠키경찰청</h1>
+<div class="sub-title">인트라넷</div>
+<div class="login-title">회원가입</div>
+<input type="text" id="name" placeholder="이름">
+<input type="text" id="signupId" placeholder="아이디">
+<input type="password" id="signupPw" placeholder="비밀번호">
+<select id="rank">
+<option value="">직급 선택</option>
+<option value="순경">순경</option>
+<option value="경사">경사</option>
+<option value="경사(팀장)">경사(팀장)</option>
+<option value="치안정감">치안정감</option>
+<option value="경찰청장">경찰청장</option>
+</select>
+<button class="login-btn" onclick="signup()">회원가입</button>
+<div class="signup-area">
+<span class="signup-btn" onclick="loginPage()">← 로그인으로 돌아가기</span>
+</div>
+</div>`;
+}
+
+function signup(){
+const name=document.getElementById("name").value;
+const id=document.getElementById("signupId").value;
+const pw=document.getElementById("signupPw").value;
+const rank=document.getElementById("rank").value;
+if(!name||!id||!pw||!rank){alert("모든 항목 입력"); return;}
+users.push({name,id,pw,rank});
+if(adminRanks.includes(rank)) adminUsers.push(name);
+alert("회원가입 완료!");
+loginPage();
+}
+
+function login(){
+const id=document.getElementById("loginId").value;
+const pw=document.getElementById("loginPw").value;
+const user=users.find(u=>u.id===id && u.pw===pw);
+if(!user){alert("아이디 또는 비밀번호 틀림"); return;}
+currentRank=user.rank;
+currentUserName=user.name;
+mainPage();
+}
+
+// ===================== 메인 페이지 =====================
+function mainPage(){
+document.getElementById("app").innerHTML=`
+<div class="main-wrapper">
+<div class="top-bar">
+<span class="logo">쿠키 경찰청</span>
+<span class="slogan">안전을 보장하는 경찰 책임을 다하는 경찰</span>
+</div>
+<div class="menu-area">
+<div class="menu-btn" onclick="noticePage()">공지사항</div>
+<div class="menu-btn" onclick="lawPage()">법령 / 규칙</div>
+<div class="menu-btn" onclick="warrantPage()">영장 / 체포</div>
+<div class="menu-btn" onclick="casePage()">사건기록</div>
+<div class="menu-btn" onclick="internalReportPage()">내부보고</div>
+<div class="menu-btn" onclick="reportPage()">신고 / 지원</div>
+</div>
+<div class="org-chart">${orgChartHTML()}</div>
+<div class="legacy">
+<h3>역대 경찰청장</h3>
+<p>제1대 경찰청장 김우진 ~2025.12.31</p>
+<p>제2대 경찰청장 박정호 2026.01.01~2026.01.21</p>
+</div>
+</div>`;
+}
+
+// ===================== 조직도 =====================
+function orgChartHTML(){
+return `
+<div class="org-level">
+  <div class="org-box"><div class="org-title">경찰청장</div><div class="org-name">박정호</div></div>
+</div>
+<div class="org-level">
+  <div class="org-box"><div class="org-title">경찰청 차장</div><div class="org-name">치안정감 한강우</div></div>
+</div>
+<div class="org-level">
+  <div class="org-box"><div class="org-title">생활안전 1팀</div><div class="org-name">팀장: 경사 조재우<br>순경 김민재<br>순경 송준수<br>순경 김우진<br>순경 나시욱</div></div>
+  <div class="org-box"><div class="org-title">생활안전 2팀</div><div class="org-name">팀장: 경사 이준호<br>경사 장선규<br>경사 신현준<br>순경 김도현<br>순경 송지환<br>순경 정진욱</div></div>
+</div>`;
+}
+
+// ===================== 글쓰기 =====================
+function openEditor(callback){
+const editorHTML=`
+<div class="container">
+<h2>글쓰기</h2>
+<input type="text" id="editTitle" placeholder="제목">
+<textarea id="editContent" placeholder="상세내용" rows="6"></textarea>
+<button class="login-btn" id="submitBtn">작성 완료</button>
+<button class="back-btn" onclick="mainPage()">취소</button>
+</div>`;
+document.getElementById("app").innerHTML=editorHTML;
+document.getElementById("submitBtn").onclick=()=>{
+const title=document.getElementById("editTitle").value;
+const content=document.getElementById("editContent").value;
+if(!title||!content){alert("제목과 상세내용 모두 입력"); return;}
+callback(title,content);
+};
+}
+
+// ===================== 글 읽기 =====================
+function openReader(type, contentList, idx, pageCallback){
+  const item = contentList[idx];
+
+  document.getElementById("app").innerHTML = `
+    <div class="container">
+      <h2>${type} 상세보기</h2>
+      <p><strong>제목:</strong> ${item.title}</p>
+      <p><strong>작성자:</strong> ${item.author || currentUserName} (${item.rank || currentRank})</p>
+      <pre>${item.content}</pre>
+      <button class="back-btn" id="backBtn">← 돌아가기</button>
+    </div>
+  `;
+
+ document.getElementById("backBtn").onclick = pageCallback;
+
+
+}
+
+
+// ===================== 공지사항 =====================
+function noticePage(){
+const canEdit = adminRanks.includes(currentRank) || adminUsers.includes(currentUserName);
+let noticeHTML = notices.map((n,i)=>`
+<div class="notice-item" data-index="${i}">
+  ${n.title}
+  ${canEdit?` <button class="action-btn" onclick="deleteNotice(${i}); event.stopPropagation()">삭제</button>`:""}
+</div>`).join("");
+
+document.getElementById("app").innerHTML=`
+<div class="notice-wrapper">
+<h2>공지사항</h2>
+${canEdit?'<button class="login-btn" onclick="addNotice()">공지 작성</button>':""}
+<div class="notice-box">${noticeHTML}</div>
+<button class="back-btn" onclick="mainPage()">← 메인으로 돌아가기</button>
+</div>`;
+
+document.querySelectorAll('.notice-item').forEach(item=>{
+item.onclick=()=>{ 
+const idx = parseInt(item.getAttribute('data-index'));
+openReader('공지사항', notices, idx, noticePage);
+}
+});
+}
+
+function addNotice(){
+openEditor((title,content)=>{
+notices.unshift({title:title, content:content, author:currentUserName, rank:currentRank});
+noticePage();
+});
+}
+
+function deleteNotice(idx){
+if(!adminRanks.includes(currentRank)&&!adminUsers.includes(currentUserName)){alert("권한 없음"); return;}
+notices.splice(idx,1); noticePage();
+}
+
+// ===================== 사건 / 내부보고 / 신고 / 영장 =====================
+function listPage(list,type,addCallback,delCallback,allowAll=false){
+let html = list.map((item,i)=>`
+<div class="notice-item" data-index="${i}">
+  ${item.title || item.split(":")[0]}
+  ${allowAll || adminRanks.includes(currentRank)?` <button class="action-btn" onclick="${delCallback}(${i}); event.stopPropagation()">삭제</button>`:""}
+</div>`).join("");
+document.getElementById("app").innerHTML=`
+<div class="generic-wrapper">
+<h2>${type}</h2>
+<button class="login-btn" onclick="${addCallback}()">작성</button>
+<div class="notice-box">${html}</div>
+<button class="back-btn" onclick="mainPage()">← 메인으로 돌아가기</button>
+</div>`;
+document.querySelectorAll('.notice-item').forEach(item=>{
+item.onclick=()=>{ 
+const idx = parseInt(item.getAttribute('data-index'));
+openReader('사건기록', cases, idx, casePage);
+
+}
+});
+}
+
+function casePage(){listPage(cases,'사건기록','addCase','deleteCase',true);}
+function addCase(){openEditor((t,c)=>{cases.unshift({title:t,content:c,author:currentUserName,rank:currentRank}); casePage();});}
+function deleteCase(idx){cases.splice(idx,1); casePage();}
+
+function internalReportPage(){if(currentRank==="순경"){alert("내부보고는 경사 이상만 가능"); return;} listPage(internalReports,'내부보고','addInternalReport','deleteInternalReport');}
+function addInternalReport(){openEditor((t,c)=>{internalReports.unshift({title:t,content:c,author:currentUserName,rank:currentRank}); internalReportPage();});}
+function deleteInternalReport(idx){internalReports.splice(idx,1); internalReportPage();}
+
+function reportPage(){listPage(reports,'신고 / 지원','addReport','deleteReport',true);}
+function addReport(){openEditor((t,c)=>{reports.unshift({title:t,content:c,author:currentUserName,rank:currentRank}); reportPage();});}
+function deleteReport(idx){reports.splice(idx,1); reportPage();}
+
+function warrantPage(){listPage(warrants,'영장 / 체포','addWarrant','deleteWarrant');}
+function addWarrant(){openEditor((t,c)=>{if(!adminRanks.includes(currentRank)){alert("권한 없음"); return;} warrants.unshift({title:t,content:c,author:currentUserName,rank:currentRank}); warrantPage();});}
+
+// ===================== 법령 =====================
+function lawPage(){document.getElementById("app").innerHTML=`
+<div class="generic-wrapper">
+<h2>법령 / 규칙</h2>
+<p>경찰청 내부규정</p>
+<pre>
+제1조(목적): 쿠키 경찰청은 치안유지, 범죄수사, 범죄예방, 안녕공공을 위함을 목적으로 한다
+
+제2조(직급): 경찰청의 직급은 다음과 같다
+1.치안총감
+2.치안정감
+3.경사
+4.순경
+
+제3조(경찰청장): 경찰청장은 쿠키경찰청을 총괄하고 지휘한다
+
+제4조(경찰청차장): 경찰청 차장은 치안정감이 보직되고 경찰청장을 보좌하며 각 팀을 지휘한다
+
+제5조(생활안전팀장): 생활안전팀장은 각 팀을 지휘하고 팀원을 관리하며 지휘한다
+
+제6조(현장감독관): 현장 감독, 지휘는 상급자가 맡으며 공백 시 경사가 맡는다 단 경사도 공백시 순경 중 최선임이 맡는다
+
+제7조(영장): 팀장 이상의 공무원은 경찰청장에게 영장을 청구할 수 있
+다
+
+제8조(현행범): 영장 없이도 체포할 수 있는 요건
+1.긴급 상황
+2.경관의 공무집행을 방해하는 경우
+
+제9조(수사): 경사 이상은 상급자의 허가에 따라 수사를 개시할 수 있다
+
+제10조(임명):새 경찰청장은 전 경찰청장이 임명한다
+</pre>
+<button class="back-btn" onclick="mainPage()">← 메인으로 돌아가기</button>
+</div>`;}
+
+loginPage();
+</script>
+</body>
+</html>
